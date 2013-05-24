@@ -1,0 +1,15 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="Aufbauwerk.Surfstation.Client.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="Shell" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">explorer.exe</Value>
+    </Setting>
+    <Setting Name="Target" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Surfstation</Value>
+    </Setting>
+    <Setting Name="Interval" Type="System.TimeSpan" Scope="Application">
+      <Value Profile="(Default)">00:00:05</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
