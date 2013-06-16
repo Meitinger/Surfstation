@@ -81,8 +81,7 @@ namespace Aufbauwerk.Surfstation.Client
                     FileName = args[0],
                     UseShellExecute = false,
                 };
-                if (args.Length > 1)
-                    psi.Arguments = args.Skip(1).Aggregate("\"", (s, c) => s + "\" \"" + c.Replace("\"", "\"\""), s => s + "\"");
+                psi.Arguments = args.Skip(1).Aggregate("", (s, c) => s + " \"" + c.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"");
                 return Process.Start(psi);
             }
 
@@ -97,22 +96,26 @@ namespace Aufbauwerk.Surfstation.Client
             protected override bool QueryPassword(ref string userName, ref string password, bool passwordIncorrect)
             {
                 // show the GNOME password dialog (passwordIncorrect is ignored)
-                var dlg = new Gnome.PasswordDialog(Program.Settings.Target, null, userName, password, false);
-                var confirmed = dlg.RunAndBlock();
-                dlg.Hide();
-                userName = confirmed ? dlg.Username : null;
-                password = confirmed ? dlg.Password : null;
-                return confirmed;
+                using (var dlg = new Gnome.PasswordDialog(Program.Settings.Target, null, userName, password, false))
+                {
+                    var confirmed = dlg.RunAndBlock();
+                    dlg.Hide();
+                    userName = confirmed ? dlg.Username : null;
+                    password = confirmed ? dlg.Password : null;
+                    return confirmed;
+                }
             }
 
             protected override void ShowErrorDialog(string msg, bool isFatal)
             {
                 // show the error dialog
-                var dlg = new Gtk.MessageDialog(null, Gtk.DialogFlags.Modal, isFatal ? Gtk.MessageType.Error : Gtk.MessageType.Warning, Gtk.ButtonsType.Ok, null);
-                dlg.Title = Program.Settings.Target;
-                dlg.Text = msg;
-                dlg.Run();
-                dlg.Hide();
+                using (var dlg = new Gtk.MessageDialog(null, Gtk.DialogFlags.Modal, isFatal ? Gtk.MessageType.Error : Gtk.MessageType.Warning, Gtk.ButtonsType.Ok, null))
+                {
+                    dlg.Title = Program.Settings.Target;
+                    dlg.Text = msg;
+                    dlg.Run();
+                    dlg.Hide();
+                }
             }
 
             protected override void Shutdown()
