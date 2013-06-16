@@ -186,13 +186,6 @@ namespace Aufbauwerk.Surfstation.Client
                 System.Windows.Forms.Application.EnableVisualStyles();
             }
 
-            private bool IsSameFileName(Process p)
-            {
-                // try to compare the main module file name
-                try { return p.MainModule.FileName == currentProcess.MainModule.FileName; }
-                catch (Win32Exception) { return false; }
-            }
-
             public override bool CheckPreconditions()
             {
                 // quit if another instance is already running
@@ -332,6 +325,11 @@ namespace Aufbauwerk.Surfstation.Client
                 if (!QueryPassword(ref userName, ref password, true))
                     return;
 
+            // initialize the image quality
+            var enc = ImageCodecInfo.GetImageDecoders().Single(e => e.FormatID == ImageFormat.Jpeg.Guid);
+            var encParams = new EncoderParameters(1);
+            encParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, Program.Settings.Quality);
+
             // start the actual shell
             using (var shell = CreateShell())
             using (var buffer = new MemoryStream())
@@ -350,7 +348,7 @@ namespace Aufbauwerk.Surfstation.Client
 
                         // serialize the screenshot and request a session continuation
                         buffer.SetLength(0);
-                        bitmap.Save(buffer, ImageFormat.Png);
+                        bitmap.Save(buffer, enc, encParams);
                         buffer.Seek(0, SeekOrigin.Begin);
                         if (!Channel.Continue(buffer))
                             break;

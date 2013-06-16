@@ -40,5 +40,14 @@ namespace Aufbauwerk.Surfstation.Client.Properties {
                 return ((global::System.TimeSpan)(this["Interval"]));
             }
         }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("60")]
+        public long Quality {
+            get {
+                return ((long)(this["Quality"]));
+            }
+        }
     }
 }
