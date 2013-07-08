@@ -9,6 +9,9 @@
 # script configuration #
 ########################
 
+# Firefox settings
+FIREFOX_STARTUP_HOMEPAGE="http://www.example.com"
+
 # print-to-mail settings
 MAIL_SENDER="no-reply@example.com"
 MAIL_RECIPIENT="frontdesk@example.com"
@@ -21,7 +24,7 @@ GRUB_USERNAME="root"
 GRUB_PASSWORD="grub.pbkdf2.sha512.10000.biglongstring"
 
 # the directory where SurfstationClient.exe and SurfstationClient.exe.config can be found
-SOURCE_PATH=.
+SOURCE_PATH="`dirname \"$0\"`"
 
 
 #################################
@@ -94,11 +97,37 @@ install "$SOURCE_PATH/SurfstationClient.exe" /usr/lib/lightdm/lightdm/Surfstatio
 cp "$SOURCE_PATH/SurfstationClient.exe.config" /usr/lib/lightdm/lightdm/SurfstationClient.exe.config
 
 # create a new guest session wrapper that calls the application
+dpkg-divert --add /usr/lib/lightdm/lightdm/lightdm-guest-session-wrapper
 cat << 'EOC' > /usr/lib/lightdm/lightdm/lightdm-guest-session-wrapper
 #!/bin/sh
 /usr/bin/mono /usr/lib/lightdm/lightdm/SurfstationClient.exe "$@"
 EOC
 chmod +x /usr/lib/lightdm/lightdm/lightdm-guest-session-wrapper
+
+
+####################################
+# set Firefox' default preferences #
+####################################
+
+# register the default profile
+mkdir -p /etc/skel/.mozilla/firefox/default
+cat << 'EOC' > /etc/skel/.mozilla/firefox/profiles.ini
+[General]
+StartWithLastProfile=1
+
+[Profile0]
+Name=default
+IsRelative=1
+Path=default
+
+'EOC'
+
+# store the preferences
+cat << EOC > /etc/skel/.mozilla/firefox/default/prefs.js
+user_pref("browser.startup.homepage", "$FIREFOX_STARTUP_HOMEPAGE");
+user_pref("browser.startup.homepage_override_url", "$FIREFOX_STARTUP_HOMEPAGE");
+
+EOC
 
 
 #############################################
