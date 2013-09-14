@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012, Manuel Meitinger
+﻿/* Copyright (C) 2012-2013, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,14 +34,36 @@ namespace Aufbauwerk.Surfstation.Server
         }
     }
 
+    class LogErrorBehaviorAttribute : Attribute, System.ServiceModel.Description.IServiceBehavior, System.ServiceModel.Dispatcher.IErrorHandler
+    {
+        void System.ServiceModel.Dispatcher.IErrorHandler.ProvideFault(Exception error, System.ServiceModel.Channels.MessageVersion version, ref System.ServiceModel.Channels.Message fault) { }
+        void System.ServiceModel.Description.IServiceBehavior.AddBindingParameters(System.ServiceModel.Description.ServiceDescription serviceDescription, ServiceHostBase serviceHostBase, System.Collections.ObjectModel.Collection<System.ServiceModel.Description.ServiceEndpoint> endpoints, System.ServiceModel.Channels.BindingParameterCollection bindingParameters) { }
+        void System.ServiceModel.Description.IServiceBehavior.Validate(System.ServiceModel.Description.ServiceDescription serviceDescription, ServiceHostBase serviceHostBase) { }
+
+        bool System.ServiceModel.Dispatcher.IErrorHandler.HandleError(Exception error)
+        {
+            // ignore expected fault exceptions and log all other types
+            if (!(error is FaultException))
+                ServiceApplication.LogEvent(EventLogEntryType.Error, error.Message);
+            return false;
+        }
+
+        void System.ServiceModel.Description.IServiceBehavior.ApplyDispatchBehavior(System.ServiceModel.Description.ServiceDescription serviceDescription, ServiceHostBase serviceHostBase)
+        {
+            // add the error handler to the list
+            foreach (System.ServiceModel.Dispatcher.ChannelDispatcher channelDispatcher in serviceHostBase.ChannelDispatchers)
+                channelDispatcher.ErrorHandlers.Add(this);
+        }
+    }
+
     [ServiceBehavior(InstanceContextMode = InstanceContextMode.PerSession)]
-    [ServiceErrorHandlerBehavior]
+    [LogErrorBehavior]
     class Session : ISession, IDisposable
     {
         static ServiceHost host;
         static Timer timer;
 
-        internal static void Start(object sender, ServiceStartEventArgs e)
+        internal static void Start(object sender, StartEventArgs e)
         {
             // start the host and the screenshot-cleanup timer
             host = new ServiceHost(typeof(Session));
@@ -58,29 +80,22 @@ namespace Aufbauwerk.Surfstation.Server
                 host.Close();
         }
 
-        static bool IsLockError(OleDbException e)
-        {
-            // check if the error is a table lock error
-            return e.Errors.Count == 1 && (e.Errors[0].SQLState == "3202" || e.Errors[0].SQLState == "3218");
-        }
-
         static void CleanupScreenshots(object state)
         {
+            // clean up all out-of-date screenshots
             try
             {
-                // clean up all out-of-date screenshots
                 using (var connection = new OleDbConnection(Program.Settings.Database))
                 {
                     connection.Open();
                     using (var command = new OleDbCommand(Program.Settings.CommandCleanupScreenshots, connection))
                     {
                         command.Parameters.AddWithValue("@Interval", Program.Settings.ScreenshotCleanupInterval.TotalSeconds);
-                        try { command.ExecuteNonQuery(); }
-                        catch (OleDbException e) { if (!IsLockError(e)) throw; }
+                        command.ExecuteNonQuery();
                     }
                 }
             }
-            catch (Exception e) { ServiceApplication.OnException(e); }
+            catch (OleDbException e) { ServiceApplication.LogEvent(EventLogEntryType.Warning, e.Message); }
         }
 
         static Image LoadImageFromStream(Stream stream)
@@ -95,7 +110,7 @@ namespace Aufbauwerk.Surfstation.Server
 
         bool disposed = false;
         bool ready = false;
-        bool ignoreLockError = true;
+        int databaseErrors = 0;
         DateTime sessionStart;
         OleDbConnection connection;
         int id;
@@ -114,31 +129,8 @@ namespace Aufbauwerk.Surfstation.Server
             {
                 command.Parameters.AddWithValue("@Duration", (int)((DateTime.Now - sessionStart).TotalMinutes));
                 command.Parameters.AddWithValue("@Session", session);
-                try
-                {
-                    // execute the command
-                    if (command.ExecuteNonQuery() != 1)
-                        return false;
-
-                    // set the flag to ignore the next lock error
-                    ignoreLockError = true;
-                }
-                catch (OleDbException e)
-                {
-                    // rethrow all non-lock errors
-                    if (!IsLockError(e))
-                        throw;
-
-                    // if a lock error already happened then log the event and return false
-                    if (!ignoreLockError)
-                    {
-                        ServiceApplication.LogEvent(EventLogEntryType.Warning, e.Message);
-                        return false;
-                    }
-
-                    // remember that a lock error occured
-                    ignoreLockError = false;
-                }
+                if (command.ExecuteNonQuery() != 1)
+                    return false;
             }
 
             // update the screenshot
@@ -146,18 +138,8 @@ namespace Aufbauwerk.Surfstation.Server
             {
                 command.Parameters.AddWithValue("@Screenshot", (object)image ?? DBNull.Value);
                 command.Parameters.AddWithValue("@Session", session);
-                try
-                {
-                    // execute the command
-                    if (command.ExecuteNonQuery() != 1)
-                        return false;
-                }
-                catch (OleDbException e)
-                {
-                    // ignore all lock errors and rethrow others
-                    if (!IsLockError(e))
-                        throw;
-                }
+                try { command.ExecuteNonQuery(); }
+                catch (OleDbException e) { ServiceApplication.LogEvent(EventLogEntryType.Warning, e.Message); }
             }
 
             // return success
@@ -245,19 +227,34 @@ namespace Aufbauwerk.Surfstation.Server
             if (disposed) throw new ObjectDisposedException(ToString()).AsFault();
             if (!ready) new InvalidOperationException().AsFault();
 
-            // ensure that the user is still allowed to logon
-            using (var command = new OleDbCommand(Program.Settings.CommandVerifyLogin, connection))
+            try
             {
-                command.Parameters.AddWithValue("@ID", id);
-                command.Parameters.AddWithValue("@State", state);
-                if (!Convert.ToBoolean(command.ExecuteScalar()))
-                    return false;
-            }
+                // ensure that the user is still allowed to logon
+                using (var command = new OleDbCommand(Program.Settings.CommandVerifyLogin, connection))
+                {
+                    command.Parameters.AddWithValue("@ID", id);
+                    command.Parameters.AddWithValue("@State", state);
+                    if (!Convert.ToBoolean(command.ExecuteScalar()))
+                        return false;
+                }
 
-            // load, adjust and store the screenshot and update the duration
-            using (var screenshot = LoadImageFromStream(image))
-            using (var zoomed = screenshot.Zoom(Program.Settings.ScreenshotSize.Width, Program.Settings.ScreenshotSize.Height, Program.Settings.ScreenshotFormat))
-                return UpdateSession(zoomed.ToOleObject(progId: "Screenshot", dde: "Screenshot", modifiable: false));
+                // load, adjust and store the screenshot and update the duration
+                using (var screenshot = LoadImageFromStream(image))
+                using (var zoomed = screenshot.Zoom(Program.Settings.ScreenshotSize.Width, Program.Settings.ScreenshotSize.Height, Program.Settings.ScreenshotFormat))
+                    return UpdateSession(zoomed.ToOleObject(progId: "Screenshot", dde: "Screenshot", modifiable: false));
+            }
+            catch (OleDbException e)
+            {
+                // keep the session going as long as allowed
+                if (databaseErrors++ < Program.Settings.DatabaseIgnoreUpdateErrors)
+                {
+                    ServiceApplication.LogEvent(EventLogEntryType.Error, e.Message);
+                    return true;
+                }
+
+                // otherwise rethrow the error
+                throw;
+            }
         }
 
         public void Logout()

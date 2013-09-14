@@ -46,5 +46,8 @@
 &lt;/SerializableConnectionString&gt;</DesignTimeValue>
       <Value Profile="(Default)">Provider=Microsoft.Jet.OLEDB.4.0;Data Source=.\Lehrlinge.mdb;OLE DB Services=-1</Value>
     </Setting>
+    <Setting Name="DatabaseIgnoreUpdateErrors" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">3</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

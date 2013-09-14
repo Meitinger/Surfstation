@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012, Manuel Meitinger
+﻿/* Copyright (C) 2012-2013, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@ namespace Aufbauwerk.Surfstation.Server
 
         [OperationContract]
         [FaultContract(typeof(ArgumentNullException))]
+        [FaultContract(typeof(ArgumentException))]
         [FaultContract(typeof(ObjectDisposedException))]
         [FaultContract(typeof(InvalidOperationException))]
         bool Continue(Stream image);

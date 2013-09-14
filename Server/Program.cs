@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012, Manuel Meitinger
+﻿/* Copyright (C) 2012-2013, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System.Data.OleDb;
-using System.Diagnostics;
 using Aufbauwerk.ServiceProcess;
 using Aufbauwerk.Surfstation.Server.Properties;
 
@@ -35,22 +33,7 @@ namespace Aufbauwerk.Surfstation.Server
             ServiceApplication.Start += RadiusServer.Start;
             ServiceApplication.Stop += Session.Stop;
             ServiceApplication.Stop += RadiusServer.Stop;
-            ServiceApplication.Exception += FilterException;
             ServiceApplication.Run();
-        }
-
-        static void FilterException(object sender, ServiceExceptionEventArgs e)
-        {
-            // ingore (log-only) all database exception that occur when the server/file is not available
-            if (e.Exception is OleDbException)
-            {
-                var ex = (OleDbException)e.Exception;
-                if (ex.Errors.Count == 1 && (ex.Errors[0].SQLState == "3024" || ex.Errors[0].SQLState == "3044"))
-                {
-                    ServiceApplication.LogEvent(EventLogEntryType.Warning, ex.Errors[0].Message);
-                    e.Cancel = true;
-                }
-            }
         }
     }
 }

@@ -31,6 +31,7 @@ namespace Aufbauwerk.Surfstation.Client
 
         [OperationContract]
         [FaultContract(typeof(ArgumentNullException))]
+        [FaultContract(typeof(ArgumentException))]
         [FaultContract(typeof(ObjectDisposedException))]
         [FaultContract(typeof(InvalidOperationException))]
         bool Continue(Stream image);

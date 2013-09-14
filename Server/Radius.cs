@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012, Manuel Meitinger
+﻿/* Copyright (C) 2012-2013, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,20 +42,20 @@ namespace Aufbauwerk.Net.Radius
         CallbackFramed = 4,
         Outbound = 5,
         Administrative = 6,
-        NASPrompt = 7,
+        NasPrompt = 7,
         AuthenticateOnly = 8,
-        CallbackNASPrompt = 9,
+        CallbackNasPrompt = 9,
         CallCheck = 10,
         CallbackAdministrative = 11,
     }
     public enum FramedProtocol
     {
-        PPP = 1,
-        SLIP = 2,
-        ARAP = 3,
-        Gandalf_SLMLP = 4,
-        Xylogics_IPX_SLIP = 5,
-        X75_Synchronous = 6,
+        Ppp = 1,
+        Slip = 2,
+        Arap = 3,
+        Gandalf = 4,
+        Xylogics = 5,
+        X75Synchronous = 6,
     }
     public enum FramedRouting
     {
@@ -67,27 +67,27 @@ namespace Aufbauwerk.Net.Radius
     public enum FramedCompression
     {
         None = 0,
-        TCPIP = 1,
-        IPX = 2,
-        LZS = 3,
+        TcpIp = 1,
+        Ipx = 2,
+        Lzs = 3,
     }
     public enum LoginService
     {
         Telnet = 0,
         Rlogin = 1,
-        TCP_Clear = 2,
+        TcpClear = 2,
         PortMaster = 3,
-        LAT = 4,
-        X25_PAD = 5,
-        X25_T3POS = 6,
-        TCP_Clear_Quiet = 8,
+        Lat = 4,
+        X25Pad = 5,
+        X25T3Pos = 6,
+        TcpClearQuiet = 8,
     }
     public enum TerminationAction
     {
         Default = 0,
-        RADIUSRequest = 1,
+        RadiusRequest = 1,
     }
-    public enum AcctStatusType
+    public enum AccountingStatusType
     {
         Start = 1,
         Stop = 2,
@@ -97,13 +97,13 @@ namespace Aufbauwerk.Net.Radius
         AccountingOff = 8,
         Failed = 15,
     }
-    public enum AcctAuthentic
+    public enum AccountingAuthentic
     {
-        RADIUS = 1,
+        Radius = 1,
         Local = 2,
         Remote = 3,
     }
-    public enum AcctTerminateCause
+    public enum AccountingTerminateCause
     {
         UserRequest = 1,
         LostCarrier = 2,
@@ -113,9 +113,9 @@ namespace Aufbauwerk.Net.Radius
         AdminReset = 6,
         AdminReboot = 7,
         PortError = 8,
-        NASError = 9,
-        NASRequest = 10,
-        NASReboot = 11,
+        NasError = 9,
+        NasRequest = 10,
+        NasReboot = 11,
         PortUnneeded = 12,
         PortPreempted = 13,
         PortSuspended = 14,
@@ -124,28 +124,28 @@ namespace Aufbauwerk.Net.Radius
         UserError = 17,
         HostRequest = 18,
     }
-    public enum NASPortType
+    public enum NasPortType
     {
         Async = 0,
         Sync = 1,
-        ISDN_Sync = 2,
-        ISDN_Async_V120 = 3,
-        ISDN_Async_V110 = 4,
+        IsdnSync = 2,
+        IsdnAsyncV120 = 3,
+        IsdnAsyncV110 = 4,
         Virtual = 5,
-        PIAFS = 6,
-        HDLC_Clear_Channel = 7,
+        Piafs = 6,
+        HdlcClearChannel = 7,
         X25 = 8,
         X75 = 9,
-        G3_Fax = 10,
-        SDSL = 11,
-        ADSL_CAP = 12,
-        ADSL_DMT = 13,
-        IDSL = 14,
+        G3Fax = 10,
+        Sdsl = 11,
+        AdslCap = 12,
+        AdslDmt = 13,
+        Idsl = 14,
         Ethernet = 15,
-        xDSL = 16,
+        Xdsl = 16,
         Cable = 17,
-        Wireless_Other = 18,
-        Wireless_IEEE_802_11 = 19,
+        WirelessOther = 18,
+        WirelessIeee802Dot11 = 19,
     }
     public enum Prompt
     {
@@ -234,18 +234,6 @@ namespace Aufbauwerk.Net.Radius
             return offsets;
         }
 
-        private void Sign(byte[] authenticatorBuffer, int offset, byte[] sharedSecret)
-        {
-            // set the given authenticator, create the md5 of the packet and store it as the new authenticator
-            Array.Copy(authenticatorBuffer, offset, buffer, 4, 16);
-            using (var md5 = MD5.Create())
-            {
-                md5.TransformBlock(buffer, 0, Length, buffer, 0);
-                md5.TransformFinalBlock(sharedSecret, 0, sharedSecret.Length);
-                Array.Copy(md5.Hash, 0, buffer, 4, 16);
-            }
-        }
-
         private bool Verify(byte[] authenticatorBuffer, int offset, byte[] sharedSecret)
         {
             // create the md5 of code+identifier+original_authenticator+attributes+shared_secret and compare it with the authenticator
@@ -263,11 +251,32 @@ namespace Aufbauwerk.Net.Radius
             }
         }
 
+        private void EnsureWritable()
+        {
+            // throw an exception if the packet is read-only
+            if (IsReadOnly)
+                throw new NotSupportedException("Packet is read-only");
+        }
+
+        private void Sign(byte[] authenticatorBuffer, int offset, byte[] sharedSecret)
+        {
+            // check for not read-only
+            EnsureWritable();
+
+            // set the given authenticator, create the md5 of the packet and store it as the new authenticator
+            Array.Copy(authenticatorBuffer, offset, buffer, 4, 16);
+            using (var md5 = MD5.Create())
+            {
+                md5.TransformBlock(buffer, 0, Length, buffer, 0);
+                md5.TransformFinalBlock(sharedSecret, 0, sharedSecret.Length);
+                Array.Copy(md5.Hash, 0, buffer, 4, 16);
+            }
+        }
+
         internal void InsertAttribute<T>(RadiusAttributeParser<T> parser, int index, T item)
         {
             // check for not read-only
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
+            EnsureWritable();
 
             // determine offset
             var offsets = OffsetsFromParser(parser);
@@ -294,8 +303,7 @@ namespace Aufbauwerk.Net.Radius
         internal void RemoveAttribute<T>(RadiusAttributeParser<T> parser, int index)
         {
             // check for not read-only
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
+            EnsureWritable();
 
             // determine offset and length
             var offsets = OffsetsFromParser(parser);
@@ -319,8 +327,7 @@ namespace Aufbauwerk.Net.Radius
         internal void SetAttribute<T>(RadiusAttributeParser<T> parser, int index, T value)
         {
             // check for not read-only
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
+            EnsureWritable();
 
             // determine offset and old length
             var offset = OffsetsFromParser(parser)[index];
@@ -380,8 +387,7 @@ namespace Aufbauwerk.Net.Radius
             get { return buffer[1]; }
             set
             {
-                if (IsReadOnly)
-                    throw new NotSupportedException("RadiusPacket is read-only");
+                EnsureWritable();
                 buffer[1] = value;
             }
         }
@@ -404,6 +410,8 @@ namespace Aufbauwerk.Net.Radius
         /// <summary>
         /// The packet's request or response authenticator.
         /// </summary>
+        /// <exception cref="ArgumentNullException">The assigned value is <c>null</c>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">The assigned value is invalid.</exception>
         /// <exception cref="NotSupportedException">The packet is read-only.</exception>
         public byte[] Authenticator
         {
@@ -419,8 +427,7 @@ namespace Aufbauwerk.Net.Radius
                     throw new ArgumentNullException("Authenticator");
                 if (value.Length != 16)
                     throw new ArgumentOutOfRangeException("Authenticator");
-                if (IsReadOnly)
-                    throw new NotSupportedException("RadiusPacket is read-only");
+                EnsureWritable();
                 Array.Copy(value, 0, buffer, 4, 16);
             }
         }
@@ -438,8 +445,6 @@ namespace Aufbauwerk.Net.Radius
         {
             if (sharedSecret == null)
                 throw new ArgumentNullException("sharedSecret");
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
             Sign(EmptyAuthenticator, 0, sharedSecret);
         }
 
@@ -456,8 +461,6 @@ namespace Aufbauwerk.Net.Radius
                 throw new ArgumentNullException("requestPacket");
             if (sharedSecret == null)
                 throw new ArgumentNullException("sharedSecret");
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
             Sign(requestPacket.buffer, 4, sharedSecret);
         }
 
@@ -467,18 +470,16 @@ namespace Aufbauwerk.Net.Radius
         /// <param name="requestPacketAuthenticator">The authenticator of the RADIUS request packet to this response.</param>
         /// <param name="sharedSecret">The shared RADIUS secret.</param>
         /// <exception cref="ArgumentNullException"><paramref name="requestPacketAuthenticator"/> or <paramref name="sharedSecret"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException"><paramref name="requestPacketAuthenticator"/> is invalid.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="requestPacketAuthenticator"/> is invalid.</exception>
         /// <exception cref="NotSupportedException">The packet is read-only.</exception>
         public void SignResponse(byte[] requestPacketAuthenticator, byte[] sharedSecret)
         {
             if (requestPacketAuthenticator == null)
                 throw new ArgumentNullException("requestPacketAuthenticator");
             if (requestPacketAuthenticator.Length != 16)
-                throw new ArgumentException("Authenticator is not valid", "requestPacketAuthenticator");
+                throw new ArgumentOutOfRangeException("requestPacketAuthenticator");
             if (sharedSecret == null)
                 throw new ArgumentNullException("sharedSecret");
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
             Sign(requestPacketAuthenticator, 0, sharedSecret);
         }
 
@@ -521,13 +522,13 @@ namespace Aufbauwerk.Net.Radius
         /// <param name="sharedSecret">The shared RADIUS secret.</param>
         /// <returns><c>true</c> if <see cref="Authenticator"/> is value, otherwise <c>false</c>.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="requestPacketAuthenticator"/> or <paramref name="sharedSecret"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException"><paramref name="requestPacketAuthenticator"/> is invalid.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="requestPacketAuthenticator"/> is invalid.</exception>
         public bool VerifyResponse(byte[] requestPacketAuthenticator, byte[] sharedSecret)
         {
             if (requestPacketAuthenticator == null)
                 throw new ArgumentNullException("requestPacketAuthenticator");
             if (requestPacketAuthenticator.Length != 16)
-                throw new ArgumentException("Authenticator is not valid", "requestPacketAuthenticator");
+                throw new ArgumentOutOfRangeException("requestPacketAuthenticator");
             if (sharedSecret == null)
                 throw new ArgumentNullException("sharedSecret");
             return Verify(requestPacketAuthenticator, 0, sharedSecret);
@@ -538,9 +539,8 @@ namespace Aufbauwerk.Net.Radius
         /// </summary>
         /// <param name="password">The user password in plain-text.</param>
         /// <param name="sharedSecret">The shared RADIUS secret.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="password"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="password"/> or <paramref name="sharedSecret"/> is <c>null</c>.</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="password"/> is longer than 128 bytes.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="sharedSecret"/> is <c>null</c>.</exception>
         /// <exception cref="NotSupportedException">The packet is read-only.</exception>
         public void SetUserPassword(string password, byte[] sharedSecret)
         {
@@ -552,8 +552,9 @@ namespace Aufbauwerk.Net.Radius
                 throw new ArgumentOutOfRangeException("password");
             if (sharedSecret == null)
                 throw new ArgumentNullException("sharedSecret");
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
+
+            // check for not read-only
+            EnsureWritable();
 
             // round the password buffer up to the next 16 bytes boundary
             var remainder = passwordBuffer.Length % 16;
@@ -647,8 +648,7 @@ namespace Aufbauwerk.Net.Radius
         /// <exception cref="NotSupportedException">The packet is read-only.</exception>
         public byte[] GetBuffer()
         {
-            if (IsReadOnly)
-                throw new NotSupportedException("RadiusPacket is read-only");
+            EnsureWritable();
             return buffer;
         }
     }
@@ -966,23 +966,23 @@ namespace Aufbauwerk.Net.Radius
         public static readonly RadiusIntegerAttributeParser FramedAppleTalkLink = new RadiusIntegerAttributeParser(37);
         public static readonly RadiusIntegerAttributeParser FramedAppleTalkNetwork = new RadiusIntegerAttributeParser(38);
         public static readonly RadiusStringAttributeParser FramedAppleTalkZone = new RadiusStringAttributeParser(39);
-        public static readonly RadiusEnumAttributeParser<AcctStatusType> AcctStatusType = new RadiusEnumAttributeParser<AcctStatusType>(40);
+        public static readonly RadiusEnumAttributeParser<AccountingStatusType> AcctStatusType = new RadiusEnumAttributeParser<AccountingStatusType>(40);
         public static readonly RadiusIntegerAttributeParser AcctDelayTime = new RadiusIntegerAttributeParser(41);
         public static readonly RadiusIntegerAttributeParser AcctInputOctets = new RadiusIntegerAttributeParser(42);
         public static readonly RadiusIntegerAttributeParser AcctOutputOctets = new RadiusIntegerAttributeParser(43);
         public static readonly RadiusStringAttributeParser AcctSessionId = new RadiusStringAttributeParser(44);
-        public static readonly RadiusEnumAttributeParser<AcctAuthentic> AcctAuthentic = new RadiusEnumAttributeParser<AcctAuthentic>(45);
+        public static readonly RadiusEnumAttributeParser<AccountingAuthentic> AcctAuthentic = new RadiusEnumAttributeParser<AccountingAuthentic>(45);
         public static readonly RadiusIntegerAttributeParser AcctSessionTime = new RadiusIntegerAttributeParser(46);
         public static readonly RadiusIntegerAttributeParser AcctInputPackets = new RadiusIntegerAttributeParser(47);
         public static readonly RadiusIntegerAttributeParser AcctOutputPackets = new RadiusIntegerAttributeParser(48);
-        public static readonly RadiusEnumAttributeParser<AcctTerminateCause> AcctTerminateCause = new RadiusEnumAttributeParser<AcctTerminateCause>(49);
+        public static readonly RadiusEnumAttributeParser<AccountingTerminateCause> AcctTerminateCause = new RadiusEnumAttributeParser<AccountingTerminateCause>(49);
         public static readonly RadiusStringAttributeParser AcctMultiSessionId = new RadiusStringAttributeParser(50);
         public static readonly RadiusIntegerAttributeParser AcctLinkCount = new RadiusIntegerAttributeParser(51);
         public static readonly RadiusIntegerAttributeParser AcctInputGigawords = new RadiusIntegerAttributeParser(52);
         public static readonly RadiusIntegerAttributeParser AcctOutputGigawords = new RadiusIntegerAttributeParser(53);
         public static readonly RadiusDateTimeAttributeParser EventTimestamp = new RadiusDateTimeAttributeParser(55);
         public static readonly RadiusBinaryAttributeParser CHAPChallenge = new RadiusBinaryAttributeParser(60);
-        public static readonly RadiusEnumAttributeParser<NASPortType> NASPortType = new RadiusEnumAttributeParser<NASPortType>(61);
+        public static readonly RadiusEnumAttributeParser<NasPortType> NASPortType = new RadiusEnumAttributeParser<NasPortType>(61);
         public static readonly RadiusIntegerAttributeParser PortLimit = new RadiusIntegerAttributeParser(62);
         public static readonly RadiusIntegerAttributeParser LoginLATPort = new RadiusIntegerAttributeParser(63);
         public static readonly RadiusIntegerAttributeParser PasswordRetry = new RadiusIntegerAttributeParser(75);

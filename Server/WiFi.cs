@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012, Manuel Meitinger
+﻿/* Copyright (C) 2012-2013, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 
 using System;
 using System.Data.OleDb;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -29,7 +30,7 @@ namespace Aufbauwerk.Surfstation.Server
     {
         static RadiusServer server;
 
-        internal static void Start(object sender, ServiceStartEventArgs e)
+        internal static void Start(object sender, StartEventArgs e)
         {
             // start the radius server
             server = new RadiusServer();
@@ -100,51 +101,49 @@ namespace Aufbauwerk.Surfstation.Server
             var buffer = new byte[0x10000];
             while (true)
             {
+                // receive the next message
+                var endpoint = (EndPoint)new IPEndPoint(IPAddress.Any, 0);
+                var length = socket.ReceiveFrom(buffer, ref endpoint);
+
+                // if nothing is received, continue listening
+                if (length == 0)
+                    continue;
+
+                // parse the packet and retrieve all necessary attributes
+                var request = new Request();
+                request.Client = (IPEndPoint)endpoint;
                 try
                 {
-                    // receive the next message
-                    var endpoint = (EndPoint)new IPEndPoint(IPAddress.Any, 0);
-                    var length = socket.ReceiveFrom(buffer, ref endpoint);
-
-                    // if nothing is received, continue listening
-                    if (length == 0)
+                    var packet = new RadiusPacket(buffer, length);
+                    if (packet.Code != PacketCode.AccessRequest)
                         continue;
-
-                    // parse the packet and retrieve all necessary attributes
-                    var request = new Request();
-                    request.Client = (IPEndPoint)endpoint;
-                    try
-                    {
-                        var packet = new RadiusPacket(buffer, length);
-                        if (packet.Code != PacketCode.AccessRequest)
-                            continue;
-                        request.Identifier = packet.Identifier;
-                        request.Authenticator = packet.Authenticator;
-                        if (packet.Attribute(RadiusAttribute.CHAPPassword).Count > 0)
-                            throw new FormatException("CHAP-Password is not supported");
-                        var userNames = packet.Attribute(RadiusAttribute.UserName);
-                        if (userNames.Count != 1)
-                            throw new FormatException("User-Name is not present");
-                        request.UserName = userNames[0];
-                        if (packet.Attribute(RadiusAttribute.UserPassword).Count != 1)
-                            throw new FormatException("User-Password is not present");
-                        request.Password = packet.GetUserPassword(sharedSecred);
-                        var callerIds = packet.Attribute(RadiusAttribute.CallingStationId);
-                        request.Address = callerIds.Count > 0 ? callerIds[0] : null;
-                        request.ProxyStates = packet.Attribute(RadiusAttribute.ProxyState).ToArray();
-                    }
-                    catch (FormatException) { continue; }
-
-                    // enqueue the request
-                    ThreadPool.QueueUserWorkItem(HandleRequest, request);
+                    request.Identifier = packet.Identifier;
+                    request.Authenticator = packet.Authenticator;
+                    if (packet.Attribute(RadiusAttribute.CHAPPassword).Count > 0)
+                        throw new FormatException("CHAP-Password is not supported");
+                    var userNames = packet.Attribute(RadiusAttribute.UserName);
+                    if (userNames.Count != 1)
+                        throw new FormatException("User-Name is not present");
+                    request.UserName = userNames[0];
+                    if (packet.Attribute(RadiusAttribute.UserPassword).Count != 1)
+                        throw new FormatException("User-Password is not present");
+                    request.Password = packet.GetUserPassword(sharedSecred);
+                    var callerIds = packet.Attribute(RadiusAttribute.CallingStationId);
+                    request.Address = callerIds.Count > 0 ? callerIds[0] : null;
+                    request.ProxyStates = packet.Attribute(RadiusAttribute.ProxyState).ToArray();
                 }
-                catch (ThreadAbortException) { throw; }
-                catch (Exception e)
+#if DEBUG
+                catch (FormatException e)
                 {
-                    // handle the exception and abort on severe errors
-                    if (!ServiceApplication.OnException(e))
-                        throw;
+                    ServiceApplication.LogEvent(EventLogEntryType.Information, e.Message);
+                    continue;
                 }
+#else
+                catch (FormatException) { continue; }
+#endif
+
+                // enqueue the request
+                ThreadPool.QueueUserWorkItem(HandleRequest, request);
             }
         }
 
@@ -194,19 +193,23 @@ namespace Aufbauwerk.Surfstation.Server
         void HandleRequest(object state)
         {
             // try to logon the user and create the response
-            try
+            var request = (Request)state;
+            int timeout;
+            try { timeout = LogonAndCreateSession(request.UserName, request.Password, request.Address); }
+            catch (OleDbException e)
             {
-                var request = (Request)state;
-                var timeout = LogonAndCreateSession(request.UserName, request.Password, request.Address);
-                var response = new RadiusPacket(timeout < 0 ? PacketCode.AccessReject : PacketCode.AccessAccept);
-                response.Identifier = request.Identifier;
-                if (timeout > 0)
-                    response.Attribute(RadiusAttribute.SessionTimeout).Add(timeout);
-                response.Attribute(RadiusAttribute.ProxyState).AddRange(request.ProxyStates);
-                response.SignResponse(request.Authenticator, sharedSecred);
-                socket.SendTo(response.GetBuffer(), 0, response.Length, SocketFlags.None, request.Client);
+                ServiceApplication.LogEvent(EventLogEntryType.Error, e.Message);
+                return;
             }
-            catch (Exception e) { ServiceApplication.OnException(e); }
+            var response = new RadiusPacket(timeout < 0 ? PacketCode.AccessReject : PacketCode.AccessAccept);
+            response.Identifier = request.Identifier;
+            if (timeout > 0)
+                response.Attribute(RadiusAttribute.SessionTimeout).Add(timeout);
+            response.Attribute(RadiusAttribute.ProxyState).AddRange(request.ProxyStates);
+            response.SignResponse(request.Authenticator, sharedSecred);
+            try { socket.SendTo(response.GetBuffer(), 0, response.Length, SocketFlags.None, request.Client); }
+            catch (ObjectDisposedException) { }
+            catch (SocketException e) { ServiceApplication.LogEvent(EventLogEntryType.Error, e.Message); }
         }
 
         public void Open()
