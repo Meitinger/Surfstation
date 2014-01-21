@@ -29,6 +29,9 @@
     <Setting Name="CommandCreateSession" Type="System.String" Scope="Application">
       <Value Profile="(Default)">INSERT INTO [Internet](ID,Typ,Dauer,Adresse) VALUES(@ID,@State,@Duration,@Client)</Value>
     </Setting>
+    <Setting Name="CommandGetIdentity" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">SELECT @@IDENTITY</Value>
+    </Setting>
     <Setting Name="CommandUpdateDuration" Type="System.String" Scope="Application">
       <Value Profile="(Default)">UPDATE [Internet] SET [Dauer] = @Duration WHERE [Sitzung] = @Session</Value>
     </Setting>

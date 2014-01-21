@@ -108,6 +108,15 @@ namespace Aufbauwerk.Surfstation.Server.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("SELECT @@IDENTITY")]
+        public string CommandGetIdentity {
+            get {
+                return ((string)(this["CommandGetIdentity"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("UPDATE [Internet] SET [Dauer] = @Duration WHERE [Sitzung] = @Session")]
         public string CommandUpdateDuration {
             get {

@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012-2013, Manuel Meitinger
+﻿/* Copyright (C) 2012-2014, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -216,10 +216,7 @@ namespace Aufbauwerk.Surfstation.Server
         {
             // open the client and start the first receive operation
             if (disposed) throw new ObjectDisposedException(ToString());
-            var address = IPAddress.Any;
-            if (!IPAddress.TryParse(Program.Settings.RadiusAddress, out address))
-                address = Dns.GetHostAddresses(Program.Settings.RadiusAddress)[0];
-            socket.Bind(new IPEndPoint(address, Program.Settings.RadiusPort));
+            socket.Bind(new IPEndPoint(IPAddress.Parse(Program.Settings.RadiusAddress), Program.Settings.RadiusPort));
             thread.Start();
         }
 

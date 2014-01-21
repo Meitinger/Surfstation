@@ -1,4 +1,4 @@
-﻿/* Copyright (C) 2012-2013, Manuel Meitinger
+﻿/* Copyright (C) 2012-2014, Manuel Meitinger
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -200,7 +200,7 @@ namespace Aufbauwerk.Surfstation.Server
                         if (command.ExecuteNonQuery() != 1)
                             return false;
                     }
-                    using (var command = new OleDbCommand("SELECT @@IDENTITY", connection, transaction))
+                    using (var command = new OleDbCommand(Program.Settings.CommandGetIdentity, connection, transaction))
                         session = (int)command.ExecuteScalar();
                     transaction.Commit();
                 }
