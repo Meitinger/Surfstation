@@ -6,4 +6,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyProduct("Surfstation")]
 [assembly: AssemblyCopyright("Copyright © 2012-2014 Aufbauwerk der Jugend")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("1.0.0.7")]
+[assembly: AssemblyVersion("1.0.0.8")]
