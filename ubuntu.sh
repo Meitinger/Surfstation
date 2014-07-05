@@ -58,8 +58,8 @@ cat << 'EOC' > /etc/apt/apt.conf.d/50unattended-upgrades
 Unattended-Upgrade::Allowed-Origins {
 	"${distro_id}:${distro_codename}-security";
 	"${distro_id}:${distro_codename}-updates";
-	"${distro_id}:${distro_codename}-proposed";
 	"${distro_id}:${distro_codename}-backports";
+	"Canonical:${distro_codename}";
 };
 Unattended-Upgrade::AutoFixInterruptedDpkg "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
